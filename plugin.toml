@@ -1,0 +1,11 @@
+name = "dual-layer-memory"
+version = "0.1.0"
+description = "Public + Personal (UUID) memory with policy-gated capture & Chroma retrieval."
+authors = ["you <you@example.com>"]
+
+# Entry points (Open WebUI will discover these)
+[tools]
+memory = "tools.memory:register"
+
+[filters]
+dual_layer_memory = "filters.dual_layer_memory_filter:register"
