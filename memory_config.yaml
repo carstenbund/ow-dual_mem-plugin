@@ -1,0 +1,23 @@
+router:
+  persist_dir: "data/chroma"
+  public_collection: "motifs__public"
+  personal_prefix: "motifs__personal__"
+policy:
+  public:
+    link_threshold: 0.65
+    dedup_threshold: 0.95
+    novelty_min: 0.20
+    max_links_per_motif: 2
+    symbol_jaccard_cap: 0.80
+  personal:
+    link_threshold: 0.60
+    dedup_threshold: 0.93
+    novelty_min: 0.10
+    max_links_per_motif: 3
+    symbol_jaccard_cap: 0.80
+retrieval:
+  k_public: 5
+  k_personal: 3
+symbols:
+  public_allow: ["concept","definition","taxonomy","relationship","claim","pattern"]
+  personal_allow: ["fact","preference","decision","rationale","open_question","todo","glossary","pattern"]
