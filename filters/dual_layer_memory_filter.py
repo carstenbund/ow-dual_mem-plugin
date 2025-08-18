@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import Dict, Any, Optional
-import yaml, os, time
+from typing import Dict, Any
+import yaml, os
 from storage.chroma_store import ChromaStore
 from policy.runtime_policy import Policy
 from utils.reducers import extract_public_units, extract_personal_units
+from utils.context import render_context
 
 _cfg = {}
 try:
@@ -17,29 +18,21 @@ _store = ChromaStore(
     personal_prefix=_cfg.get("router", {}).get("personal_prefix", "motifs__personal__"),
 )
 
-PUB = Policy(**_cfg.get("policy", {}).get("public", {})) if _cfg.get("policy") else Policy(0.65, 0.95, 0.20, 2, 0.80)
-PER = Policy(**_cfg.get("policy", {}).get("personal", {})) if _cfg.get("policy") else Policy(0.60, 0.93, 0.10, 3, 0.80)
+PUB = Policy(**_cfg.get("policy", {}).get("public", {})) if _cfg.get("policy") else Policy(0.65,0.95,0.20,2,0.80)
+PER = Policy(**_cfg.get("policy", {}).get("personal", {})) if _cfg.get("policy") else Policy(0.60,0.93,0.10,3,0.80)
 
 def _thread_ask_default(prompt: str) -> str:
-    # In Open WebUI, you can inject a host-provided LLM call; for MVP, return empty JSON.
     return "[]"
 
 def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Runs on each message; expects event to include:
-      - role: 'user' or 'assistant'
-      - content: text
-      - user_id: UUID (if available)
-    """
     if event.get("role") != "user":
         return event
 
-    text = event.get("content", "")
+    text = event.get("content","")
     user_id = event.get("user_id")
-
-    # Use host's LLM when integrated; fallback returns [] so it's safe
     ask = event.get("_thread_ask", _thread_ask_default)
 
+    # 1) extract + persist
     pub_units = extract_public_units(ask, text)
     per_units = extract_personal_units(ask, text) if user_id else []
 
@@ -48,13 +41,27 @@ def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
     if per_units and user_id:
         _store.persist_units("personal", user_id, per_units, PER)
 
-    # Optionally, attach retrieval context for next turn (host can merge it)
-    # r_pub = _store.router("public", None).search_text(text, top_k=_cfg.get("retrieval",{}).get("k_public",5))
-    # r_per = _store.router("personal", user_id).search_text(text, top_k=_cfg.get("retrieval",{}).get("k_personal",3)) if user_id else []
-    # event["memory_context"] = render_context(r_pub) + render_context(r_per)
+    # 2) Optional: attach retrieval context for the next turn
+    cfg_ret = _cfg.get("retrieval", {}) or {}
+    if cfg_ret.get("attach_context", True):
+        k_pub = int(cfg_ret.get("k_public", 5))
+        k_per = int(cfg_ret.get("k_personal", 3))
+        ctx = ""
+
+        r_pub = _store.router("public", None)
+        hits_pub = r_pub.search_text(text, top_k=max(0, k_pub))
+        if hits_pub: ctx += render_context(hits_pub)
+
+        if user_id and k_per > 0:
+            r_per = _store.router("personal", user_id)
+            hits_per = r_per.search_text(text, top_k=k_per)
+            if hits_per: ctx += render_context(hits_per)
+
+        # Host can read this and prepend to system/user prompt for the model
+        if ctx:
+            event["memory_context"] = ctx
 
     return event
 
 def register():
-    # Host will call this to register the filter
     return {"on_message": on_message}

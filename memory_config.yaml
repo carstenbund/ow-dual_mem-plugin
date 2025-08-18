@@ -18,6 +18,7 @@ policy:
 retrieval:
   k_public: 5
   k_personal: 3
+  attach_context: true
 symbols:
   public_allow: ["concept","definition","taxonomy","relationship","claim","pattern"]
   personal_allow: ["fact","preference","decision","rationale","open_question","todo","glossary","pattern"]
