@@ -39,6 +39,10 @@ def link(src_id: str, dst_id: str, layer: str = "public", user_id: Optional[str]
     _store.link(layer, user_id, src_id, dst_id, rel="linked")
     return {"linked": [src_id, dst_id]}
 
+
+def links_for(motif_id: str, layer: str="public", user_id: Optional[str]=None) -> Dict[str, Any]:
+    return {"edges": _store.links_for(layer, user_id, motif_id)}
+
 def wipe_namespace(layer: str, user_id: Optional[str] = None) -> Dict[str, Any]:
     _store.wipe_namespace(layer, user_id)
     return {"wiped": {"layer": layer, "user_id": user_id}}
@@ -88,6 +92,19 @@ def register():
                     },
                     "required": ["src_id", "dst_id"],
                 },
+            },
+            "memory.links_for": {
+                "callable": links_for,
+                "description": "List outgoing links for a motif.",
+                "parameters": {
+                    "type":"object",
+                    "properties":{
+                        "motif_id":{"type":"string"},
+                        "layer":{"type":"string","enum":["public","personal"],"default":"public"},
+                        "user_id":{"type":["string","null"]}
+                    },
+                    "required":["motif_id"]
+                }
             },
             "memory.wipe_namespace": {
                 "callable": wipe_namespace,
