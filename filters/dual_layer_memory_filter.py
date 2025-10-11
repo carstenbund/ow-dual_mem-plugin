@@ -5,6 +5,7 @@ from storage.chroma_store import ChromaStore
 from policy.runtime_policy import Policy
 from utils.reducers import extract_public_units, extract_personal_units
 from utils.context import render_context
+from utils.extraction import build_thread_ask
 
 _cfg = {}
 try:
@@ -21,8 +22,7 @@ _store = ChromaStore(
 PUB = Policy(**_cfg.get("policy", {}).get("public", {})) if _cfg.get("policy") else Policy(0.65,0.95,0.20,2,0.80)
 PER = Policy(**_cfg.get("policy", {}).get("personal", {})) if _cfg.get("policy") else Policy(0.60,0.93,0.10,3,0.80)
 
-def _thread_ask_default(prompt: str) -> str:
-    return "[]"
+_ask_resolver = build_thread_ask(_cfg)
 
 def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
     if event.get("role") != "user":
@@ -30,7 +30,8 @@ def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
 
     text = event.get("content","")
     user_id = event.get("user_id")
-    ask = event.get("_thread_ask", _thread_ask_default)
+    host_ask = event.get("_thread_ask")
+    ask = _ask_resolver(host_ask)
 
     # 1) extract + persist
     pub_units = extract_public_units(ask, text)

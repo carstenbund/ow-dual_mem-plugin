@@ -19,6 +19,14 @@ retrieval:
   k_public: 5
   k_personal: 3
   attach_context: true
+extractor:
+  fallback: "regex"
+  llm:
+    endpoint: ""
+    model: ""
+    api_key_env: ""
+    timeout: 15
+    temperature: 0.0
 symbols:
   public_allow: ["concept","definition","taxonomy","relationship","claim","pattern"]
   personal_allow: ["fact","preference","decision","rationale","open_question","todo","glossary","pattern"]

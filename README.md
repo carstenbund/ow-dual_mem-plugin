@@ -20,11 +20,29 @@ Place this folder into your Open WebUI plugins / tools workspace and enable:
 
 Configure `memory_config.yaml`, then chat. Use the `memory.retrieve` tool to pull context.
 
+### Memory extractor configuration
+
+The filter attempts to use the host-provided `_thread_ask` hook first. When the host does not supply one, the plugin now reads
+`memory_config.yaml > extractor`:
+
+```yaml
+extractor:
+  fallback: "regex"            # deterministic extractor used when HTTP calls fail or are disabled
+  llm:
+    endpoint: "http://127.0.0.1:3000/api/chat/completions"  # OpenAI compatible endpoint (leave blank to disable)
+    model: "gpt-4o-mini"       # Optional model hint for OpenAI compatible servers
+    api_key_env: "OPENWEBUI_API_KEY"  # Environment variable that stores the bearer token (optional)
+    timeout: 15
+    temperature: 0.0
+```
+
+If the HTTP call fails or is not configured, the regex fallback will still derive structured memories from user turns so capture
+and retrieval remain operational.
+
 ## Implementation task list
 
-1. **Complete functional integration with Open WebUI**
-   - Wire the filter's `_thread_ask` calls to an available LLM endpoint so `extract_public_units` and `extract_personal_units` capture memories during real conversations.
-   - Provide a configurable fallback extractor (e.g., deterministic regex or local model) for environments without hosted LLM access to keep the plugin operational.
+1. **Complete functional integration with Open WebUI** ✅
+   - `_thread_ask` now routes through a configurable HTTP client and automatically falls back to a deterministic regex-based extractor when a hosted LLM is unavailable.
 2. **Surface retrieved memory inside the chat experience**
    - Render `memory_context` blocks or add UI affordances in Open WebUI so users can inspect which memories were retrieved for each turn.
    - Expose admin-facing commands or panels that call `memory.links_for` and `memory.wipe_namespace` to manage personal and shared memories.
