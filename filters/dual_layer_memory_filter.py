@@ -4,7 +4,7 @@ import yaml, os
 from storage.chroma_store import ChromaStore
 from policy.runtime_policy import Policy
 from utils.reducers import extract_public_units, extract_personal_units
-from utils.context import render_context
+from utils.context import render_context, structured_hits, attachment_payload
 from utils.extraction import build_thread_ask
 
 _cfg = {}
@@ -47,20 +47,38 @@ def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
     if cfg_ret.get("attach_context", True):
         k_pub = int(cfg_ret.get("k_public", 5))
         k_per = int(cfg_ret.get("k_personal", 3))
-        ctx = ""
+        ctx_sections = []
+        attachments = []
+        structured: Dict[str, Any] = {}
 
         r_pub = _store.router("public", None)
         hits_pub = r_pub.search_text(text, top_k=max(0, k_pub))
-        if hits_pub: ctx += render_context(hits_pub)
+        if hits_pub:
+            structured["public"] = structured_hits("public", hits_pub)
+            attachments.append(attachment_payload("public", hits_pub))
+            block = render_context(hits_pub).replace("## Context (top motifs)", "## Public memory", 1)
+            ctx_sections.append(block)
 
         if user_id and k_per > 0:
             r_per = _store.router("personal", user_id)
             hits_per = r_per.search_text(text, top_k=k_per)
-            if hits_per: ctx += render_context(hits_per)
+            if hits_per:
+                structured["personal"] = structured_hits("personal", hits_per)
+                attachments.append(attachment_payload("personal", hits_per))
+                block = render_context(hits_per).replace("## Context (top motifs)", "## Personal memory", 1)
+                ctx_sections.append(block)
 
         # Host can read this and prepend to system/user prompt for the model
-        if ctx:
+        if ctx_sections:
+            ctx = "\n\n".join(ctx_sections)
             event["memory_context"] = ctx
+
+        if structured:
+            meta = event.setdefault("metadata", {})
+            meta.setdefault("memory_hits", {}).update(structured)
+
+        if attachments:
+            event.setdefault("attachments", []).extend(attachments)
 
     return event
 

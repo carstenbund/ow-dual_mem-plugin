@@ -47,6 +47,51 @@ def wipe_namespace(layer: str, user_id: Optional[str] = None) -> Dict[str, Any]:
     _store.wipe_namespace(layer, user_id)
     return {"wiped": {"layer": layer, "user_id": user_id}}
 
+
+def admin_links_for(motif_id: str, layer: str = "public", user_id: Optional[str] = None) -> Dict[str, Any]:
+    """Return link metadata plus destination motif snippets for admins."""
+
+    edges = _store.links_for(layer, user_id, motif_id)
+    router = _store.router(layer, user_id)
+    cache = router._cache  # cached motifs for this namespace
+    summary = []
+    for edge in edges:
+        dst_id = edge.get("dst")
+        dst = cache.get(dst_id)
+        summary.append(
+            {
+                "edge_id": edge.get("id"),
+                "dst_id": dst_id,
+                "relation": edge.get("rel", "linked"),
+                "score_hint": edge.get("score"),
+                "created_at": edge.get("ts"),
+                "dst_symbols": list(getattr(dst, "symbols", []) or []),
+                "dst_excerpt": (getattr(dst, "content", "") or "").strip()[:200],
+            }
+        )
+
+    return {
+        "motif_id": motif_id,
+        "layer": layer,
+        "user_id": user_id,
+        "count": len(summary),
+        "links": summary,
+    }
+
+
+def admin_wipe_namespace(layer: str = "public", user_id: Optional[str] = None, confirm: bool = False) -> Dict[str, Any]:
+    """Safety wrapper around wipe_namespace for administrative tooling."""
+
+    if not confirm:
+        return {
+            "confirmation_required": True,
+            "message": "Set confirm=true to wipe the namespace.",
+            "layer": layer,
+            "user_id": user_id,
+        }
+
+    return wipe_namespace(layer=layer, user_id=user_id)
+
 # ---- Open WebUI registration hook ----
 def register():
     # The host will introspect these callables and expose them as tool functions
@@ -114,6 +159,32 @@ def register():
                     "properties": {
                         "layer": {"type": "string", "enum": ["public", "personal"], "default": "public"},
                         "user_id": {"type": ["string", "null"]},
+                    },
+                    "required": ["layer"],
+                },
+            },
+            "memory.admin_links_for": {
+                "callable": admin_links_for,
+                "description": "Admin helper that summarizes outgoing links and destination snippets.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "motif_id": {"type": "string"},
+                        "layer": {"type": "string", "enum": ["public", "personal"], "default": "public"},
+                        "user_id": {"type": ["string", "null"]},
+                    },
+                    "required": ["motif_id"],
+                },
+            },
+            "memory.admin_wipe_namespace": {
+                "callable": admin_wipe_namespace,
+                "description": "Require explicit confirmation before wiping a namespace.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "layer": {"type": "string", "enum": ["public", "personal"], "default": "public"},
+                        "user_id": {"type": ["string", "null"]},
+                        "confirm": {"type": "boolean", "default": False},
                     },
                     "required": ["layer"],
                 },
