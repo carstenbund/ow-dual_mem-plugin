@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Tuple, Optional, Dict
-import threading, numpy as np
+import threading, numpy as np, logging, warnings
 import chromadb
 from chromadb.config import Settings
 
@@ -26,21 +26,49 @@ def _as_sim(dist: float | None) -> float:
         d = min(d, 2.0)
     return max(0.0, 1.0 - d)
 
+log = logging.getLogger(__name__)
+
+
 class Embedder:
-    def __init__(self):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", allow_hash_fallback: bool = False):
         self.st = None
+        self.model_name = model_name
+        self.allow_hash_fallback = allow_hash_fallback
+        self._hash_fallback = False
         try:
             from sentence_transformers import SentenceTransformer
-            self.st = SentenceTransformer("all-MiniLM-L6-v2")
-        except Exception:
-            self.st = None
+        except Exception as exc:
+            message = (
+                "sentence-transformers is required to load embedding model "
+                f"'{model_name}'. Install the dependency or enable allow_hash_fallback."
+            )
+            if not allow_hash_fallback:
+                raise RuntimeError(message) from exc
+            warnings.warn(message + " Falling back to hashing encoder.", RuntimeWarning)
+            log.warning(message)
+            self._hash_fallback = True
+            return
+
+        try:
+            self.st = SentenceTransformer(model_name)
+        except Exception as exc:
+            message = f"Failed to load embedding model '{model_name}': {exc}"
+            if not allow_hash_fallback:
+                raise RuntimeError(message) from exc
+            warnings.warn(message + " Falling back to hashing encoder.", RuntimeWarning)
+            log.warning(message)
+            self._hash_fallback = True
 
     def encode_texts(self, texts: List[str]) -> np.ndarray:
         if self.st is not None:
             vecs = self.st.encode(texts, normalize_embeddings=True)
             return np.asarray(vecs, dtype=np.float32)
         # fallback: trivial tf-idf-like hashing (compact 384-d)
-        import hashlib, math
+        if not self.allow_hash_fallback and not self._hash_fallback:
+            raise RuntimeError(
+                "Embedding model is not initialised and allow_hash_fallback is disabled."
+            )
+        import hashlib
         D = 384
         out = np.zeros((len(texts), D), dtype=np.float32)
         for i, t in enumerate(texts):
@@ -51,14 +79,26 @@ class Embedder:
         return _l2_norm(out)
 
 class ChromaRouter:
-    def __init__(self, persist_dir="data/chroma", collection_name="motifs__public", metric="cosine"):
-        self.emb = Embedder()
+    def __init__(
+        self,
+        persist_dir="data/chroma",
+        collection_name="motifs__public",
+        metric="cosine",
+        embedding_model: str = "all-MiniLM-L6-v2",
+        allow_hash_fallback: bool = False,
+    ):
+        self.emb = Embedder(model_name=embedding_model, allow_hash_fallback=allow_hash_fallback)
         self.persist_dir = persist_dir
         self.collection_name = collection_name
         self.metric = metric
 
         self._lock = threading.RLock()
-        self._client = chromadb.PersistentClient(path=persist_dir, settings=Settings(allow_reset=False))
+        try:
+            self._client = chromadb.PersistentClient(path=persist_dir, settings=Settings(allow_reset=False))
+        except Exception as exc:  # pragma: no cover - defensive
+            raise RuntimeError(
+                f"Failed to initialise Chroma client at '{persist_dir}': {exc}"
+            ) from exc
         self._coll = self._get_or_create_collection()
         self._cache: Dict[str, Motif] = {}
 
