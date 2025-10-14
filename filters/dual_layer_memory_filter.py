@@ -49,8 +49,7 @@ def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
         attachments = []
         structured: Dict[str, Any] = {}
 
-        r_pub = _store.router("public", None)
-        hits_pub = r_pub.search_text(text, top_k=max(0, k_pub))
+        hits_pub = _store.search_text("public", None, text, top_k=max(0, k_pub))
         if hits_pub:
             structured["public"] = structured_hits("public", hits_pub)
             attachments.append(attachment_payload("public", hits_pub))
@@ -58,8 +57,7 @@ def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
             ctx_sections.append(block)
 
         if user_id and k_per > 0:
-            r_per = _store.router("personal", user_id)
-            hits_per = r_per.search_text(text, top_k=k_per)
+            hits_per = _store.search_text("personal", user_id, text, top_k=k_per)
             if hits_per:
                 structured["personal"] = structured_hits("personal", hits_per)
                 attachments.append(attachment_payload("personal", hits_per))

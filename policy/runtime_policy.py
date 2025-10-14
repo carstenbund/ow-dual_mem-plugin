@@ -8,12 +8,14 @@ class Policy:
         novelty_min: float = 0.10,
         max_links_per_motif: int = 3,
         symbol_jaccard_cap: float = 0.80,
+        max_links_per_minute: int = 30,
     ):
         self.link_threshold = link_threshold
         self.dedup_threshold = dedup_threshold
         self.novelty_min = novelty_min
         self.max_links_per_motif = max_links_per_motif
         self.symbol_jaccard_cap = symbol_jaccard_cap
+        self.max_links_per_minute = max(0, int(max_links_per_minute))
 
     def should_persist(self, novelty_index: float) -> bool:
         return novelty_index >= self.novelty_min

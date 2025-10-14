@@ -12,12 +12,14 @@ policy:
     novelty_min: 0.20
     max_links_per_motif: 2
     symbol_jaccard_cap: 0.80
+    max_links_per_minute: 20
   personal:
     link_threshold: 0.60
     dedup_threshold: 0.93
     novelty_min: 0.10
     max_links_per_motif: 3
     symbol_jaccard_cap: 0.80
+    max_links_per_minute: 40
 retrieval:
   k_public: 5
   k_personal: 3

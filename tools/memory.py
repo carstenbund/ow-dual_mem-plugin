@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import Optional, Dict, Any, List
 from utils.context import render_context
 from storage.chroma_store import ChromaStore
-from routing.chroma_router import Motif
 from policy.runtime_policy import Policy
 from utils.config_loader import get_config
 
@@ -20,8 +19,7 @@ PUB = Policy(**_cfg["policy"]["public"])
 PER = Policy(**_cfg["policy"]["personal"])
 
 def retrieve(query: str, layer: str = "public", user_id: Optional[str] = None, k: int = 5) -> Dict[str, Any]:
-    r = _store.router(layer, user_id)
-    hits = r.search_text(query, top_k=max(1, k))
+    hits = _store.search_text(layer, user_id, query, top_k=max(1, k))
     return {
         "count": len(hits),
         "context": render_context(hits),
