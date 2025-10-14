@@ -1,26 +1,24 @@
 from __future__ import annotations
 from typing import Dict, Any
-import yaml, os
 from storage.chroma_store import ChromaStore
 from policy.runtime_policy import Policy
 from utils.reducers import extract_public_units, extract_personal_units
 from utils.context import render_context, structured_hits, attachment_payload
 from utils.extraction import build_thread_ask
+from utils.config_loader import get_config
 
-_cfg = {}
-try:
-    _cfg = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "..", "memory_config.yaml")))
-except Exception:
-    _cfg = {}
+_cfg = get_config()
 
 _store = ChromaStore(
-    persist_dir=_cfg.get("router", {}).get("persist_dir", "data/chroma"),
-    public_name=_cfg.get("router", {}).get("public_collection", "motifs__public"),
-    personal_prefix=_cfg.get("router", {}).get("personal_prefix", "motifs__personal__"),
+    persist_dir=_cfg["router"]["persist_dir"],
+    public_name=_cfg["router"]["public_collection"],
+    personal_prefix=_cfg["router"]["personal_prefix"],
+    embedding_model=_cfg["embedding"]["model_name"],
+    allow_hash_fallback=_cfg["embedding"].get("allow_hash_fallback", False),
 )
 
-PUB = Policy(**_cfg.get("policy", {}).get("public", {})) if _cfg.get("policy") else Policy(0.65,0.95,0.20,2,0.80)
-PER = Policy(**_cfg.get("policy", {}).get("personal", {})) if _cfg.get("policy") else Policy(0.60,0.93,0.10,3,0.80)
+PUB = Policy(**_cfg["policy"]["public"])
+PER = Policy(**_cfg["policy"]["personal"])
 
 _ask_resolver = build_thread_ask(_cfg)
 
@@ -43,7 +41,7 @@ def on_message(event: Dict[str, Any]) -> Dict[str, Any]:
         _store.persist_units("personal", user_id, per_units, PER)
 
     # 2) Optional: attach retrieval context for the next turn
-    cfg_ret = _cfg.get("retrieval", {}) or {}
+    cfg_ret = _cfg["retrieval"]
     if cfg_ret.get("attach_context", True):
         k_pub = int(cfg_ret.get("k_public", 5))
         k_per = int(cfg_ret.get("k_personal", 3))

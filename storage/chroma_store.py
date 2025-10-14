@@ -51,11 +51,25 @@ def _novelty_scores(router: ChromaRouter, m: Motif, k: int = 5) -> Dict[str, flo
 # ----------------- store -----------------
 
 class ChromaStore:
-    def __init__(self, persist_dir="data/chroma", public_name="motifs__public", personal_prefix="motifs__personal__"):
+    def __init__(
+        self,
+        persist_dir="data/chroma",
+        public_name="motifs__public",
+        personal_prefix="motifs__personal__",
+        embedding_model: str = "all-MiniLM-L6-v2",
+        allow_hash_fallback: bool = False,
+    ):
         self.persist_dir = persist_dir
         self.public_name = public_name
         self.personal_prefix = personal_prefix
-        self.client = chromadb.PersistentClient(path=persist_dir, settings=Settings(allow_reset=False))
+        self.embedding_model = embedding_model
+        self.allow_hash_fallback = allow_hash_fallback
+        try:
+            self.client = chromadb.PersistentClient(path=persist_dir, settings=Settings(allow_reset=False))
+        except Exception as exc:  # pragma: no cover - defensive
+            raise RuntimeError(
+                f"Failed to initialise Chroma persistence at '{persist_dir}': {exc}"
+            ) from exc
 
     # ---- collection names ----
     def _motif_coll_name(self, layer: str, user_id: Optional[str]) -> str:
@@ -74,7 +88,12 @@ class ChromaStore:
     # ---- routers ----
     def router(self, layer: str, user_id: Optional[str]) -> ChromaRouter:
         coll = self._motif_coll_name(layer, user_id)
-        r = ChromaRouter(persist_dir=self.persist_dir, collection_name=coll)
+        r = ChromaRouter(
+            persist_dir=self.persist_dir,
+            collection_name=coll,
+            embedding_model=self.embedding_model,
+            allow_hash_fallback=self.allow_hash_fallback,
+        )
         r.rebuild_cache()
         return r
 

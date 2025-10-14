@@ -2,6 +2,9 @@ router:
   persist_dir: "data/chroma"
   public_collection: "motifs__public"
   personal_prefix: "motifs__personal__"
+embedding:
+  model_name: "all-MiniLM-L6-v2"
+  allow_hash_fallback: false
 policy:
   public:
     link_threshold: 0.65
