@@ -39,22 +39,26 @@ extractor:
 If the HTTP call fails or is not configured, the regex fallback will still derive structured memories from user turns so capture
 and retrieval remain operational.
 
-## Implementation task list
+## Project status
 
-1. **Complete functional integration with Open WebUI** ✅
-   - `_thread_ask` now routes through a configurable HTTP client and automatically falls back to a deterministic regex-based extractor when a hosted LLM is unavailable.
-2. **Surface retrieved memory inside the chat experience**
-   - Render `memory_context` blocks or add UI affordances in Open WebUI so users can inspect which memories were retrieved for each turn.
-   - Expose admin-facing commands or panels that call `memory.links_for` and `memory.wipe_namespace` to manage personal and shared memories.
-3. **Validate configuration and dependencies on startup**
-   - Add schema checks for `memory_config.yaml`, ensuring embedding model names, collection paths, and thresholds are present and valid.
-   - Emit clear errors (or health endpoints) when Chroma persistence or the embedding model cannot be initialized, instead of silently degrading to hashing.
-4. **Package for predictable deployment**
-   - Publish dependency metadata (`pyproject.toml` or `requirements.txt`) with pinned versions for Chroma, sentence-transformers, and other runtime libraries.
-   - Document or script pre-download of embedding models and required volume mounts for Chroma persistence to avoid runtime surprises.
-5. **Improve observability and performance safeguards**
-   - Reuse shared router/store instances to avoid per-request cache rebuilds, and instrument latency/error metrics for memory operations.
-   - Add rate limiting or guardrails around automatic link creation to prevent runaway cross-namespace associations.
-6. **Establish automated testing coverage**
-   - Create unit tests for policy decisions (deduplication, novelty gating, link thresholds) and storage operations across namespaces.
-   - Add integration tests that simulate a chat flow through the filter to confirm capture, retrieval, and context rendering behave as expected.
+### Usability and functionality assessment
+
+- **Filter + tool wiring works end-to-end.** The filter persists both public and personal units through a shared `ChromaStore`, applies policy gating, and attaches retrieval context, structured metadata, and markdown attachments for the host UI to consume. Tools expose retrieval, persistence, linking, and admin helpers over the same storage backend.【F:filters/dual_layer_memory_filter.py†L1-L83】【F:tools/memory.py†L1-L173】
+- **Configuration is validated at import time.** `utils.config_loader` enforces schema requirements, normalises paths, and ensures the persistence directory exists before instantiating storage or policy objects, preventing silent misconfiguration.【F:utils/config_loader.py†L1-L104】
+- **Extraction is resilient to missing LLMs.** The thread ask resolver chains the host-provided callable, an optional HTTP LLM client, and a deterministic regex fallback so capture still works offline.【F:utils/extraction.py†L1-L244】
+- **Chroma integration is production-ready.** The storage layer caches router instances, applies novelty and dedup policies, records simple metrics, and rate-limits automatic linking to avoid runaway graph growth.【F:storage/chroma_store.py†L1-L239】【F:storage/chroma_store.py†L239-L366】
+
+Collectively, the plugin is usable today inside Open WebUI for capturing and retrieving memories as long as Chroma and embedding dependencies are available. The remaining work is mostly around packaging, observability exposure, and host-level UX.
+
+### Completed milestones
+
+1. ✅ **Functional Open WebUI integration.** Filter + tool registration work with configurable extraction fallbacks and Chroma persistence.【F:filters/dual_layer_memory_filter.py†L1-L83】【F:tools/memory.py†L1-L173】
+2. ✅ **In-chat memory surfacing hooks.** Retrieval context, metadata, and attachments are emitted on each user turn so the host can display them in the UI.【F:filters/dual_layer_memory_filter.py†L35-L76】
+3. ✅ **Configuration validation and dependency checks.** Import-time schema validation and embedder initialisation guard against missing models or directories, with optional hashing fallback.【F:utils/config_loader.py†L1-L104】【F:routing/chroma_router.py†L1-L104】
+
+### Outstanding work
+
+1. **Ship packaging metadata and dependency pins.** Provide a `pyproject.toml`/`requirements.txt` plus documentation for downloading embedding models so deployments are reproducible.【F:tools/memory.py†L1-L35】【F:routing/chroma_router.py†L23-L83】
+2. **Document or build UI affordances for memory context.** Outline how Open WebUI should render `memory_context`, `metadata.memory_hits`, and markdown attachments, or contribute the necessary frontend changes.【F:filters/dual_layer_memory_filter.py†L35-L76】
+3. **Expose metrics and health diagnostics.** The store records latency/error counters but nothing exports them; add tooling or endpoints so operators can monitor persistence and link budgets.【F:storage/chroma_store.py†L53-L113】
+4. **Add automated tests.** Cover policy gating, novelty scoring, link rate limiting, and extractor fallbacks with unit and integration tests to prevent regressions.【F:storage/chroma_store.py†L239-L366】【F:utils/extraction.py†L1-L244】
