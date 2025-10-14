@@ -79,6 +79,9 @@ def validate_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         max_links = section.get("max_links_per_motif")
         if not isinstance(max_links, int) or max_links < 0:
             errors.append(f"policy.{layer}.max_links_per_motif must be a non-negative integer")
+        rate_limit = section.get("max_links_per_minute", 30)
+        if not isinstance(rate_limit, int) or rate_limit < 0:
+            errors.append(f"policy.{layer}.max_links_per_minute must be a non-negative integer")
 
     retrieval = cfg.get("retrieval") or {}
     for key in ("k_public", "k_personal"):
